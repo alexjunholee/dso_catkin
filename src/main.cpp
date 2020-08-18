@@ -25,6 +25,7 @@
 
 
 
+#include <thread>
 #include <locale.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -32,12 +33,14 @@
 #include <unistd.h>
 
 #include "util/settings.h"
+#include "util/DatasetReader.h"
 #include "FullSystem/FullSystem.h"
 #include "util/Undistort.h"
 #include "IOWrapper/Pangolin/PangolinDSOViewer.h"
 #include "IOWrapper/OutputWrapper/SampleOutputWrapper.h"
 
 
+#include <boost/thread.hpp>
 #include <ros/ros.h>
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/Image.h>
@@ -46,10 +49,16 @@
 #include "cv_bridge/cv_bridge.h"
 
 
+int start=0;
+int end=100000;
+bool preload=false;
 std::string calib = "";
 std::string vignetteFile = "";
 std::string gammaFile = "";
+std::string source = "";
 std::string saveFile = "";
+float playbackSpeed=0;
+int mode=0;
 bool useSampleOutput=false;
 
 using namespace dso;
@@ -68,7 +77,12 @@ void parseArgument(char* arg)
 		}
 		return;
 	}
-
+	if(1==sscanf(arg,"files=%s",buf))
+	{
+		source = buf;
+		printf("loading data from %s!\n", source.c_str());
+		return;
+	}
 	if(1==sscanf(arg,"quiet=%d",&option))
 	{
 		if(option==1)
@@ -108,6 +122,38 @@ void parseArgument(char* arg)
 		}
 		return;
 	}
+	if(1==sscanf(arg,"preset=%d",&option))
+	{
+		printf("preset set to 0!\n");
+		return;
+	}
+
+	if(1==sscanf(arg,"mode=%d",&option))
+	{
+
+		mode = option;
+		if(option==0)
+		{
+			printf("PHOTOMETRIC MODE WITH CALIBRATION!\n");
+		}
+		if(option==1)
+		{
+			printf("PHOTOMETRIC MODE WITHOUT CALIBRATION!\n");
+			setting_photometricCalibration = 0;
+			setting_affineOptModeA = 0; //-1: fix. >=0: optimize (with prior, if > 0).
+			setting_affineOptModeB = 0; //-1: fix. >=0: optimize (with prior, if > 0).
+		}
+		if(option==2)
+		{
+			printf("PHOTOMETRIC MODE WITH PERFECT IMAGES!\n");
+			setting_photometricCalibration = 0;
+			setting_affineOptModeA = -1; //-1: fix. >=0: optimize (with prior, if > 0).
+			setting_affineOptModeB = -1; //-1: fix. >=0: optimize (with prior, if > 0).
+            setting_minGradHistAdd=3;
+		}
+		return;
+	}
+
 	if(1==sscanf(arg,"calib=%s",buf))
 	{
 		calib = buf;
@@ -144,34 +190,34 @@ FullSystem* fullSystem = 0;
 Undistort* undistorter = 0;
 int frameID = 0;
 
-void vidCb(const sensor_msgs::ImageConstPtr img)
-{
-	cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8);
-	assert(cv_ptr->image.type() == CV_8U);
-	assert(cv_ptr->image.channels() == 1);
+//void vidCb(const sensor_msgs::ImageConstPtr img)
+//{
+//	cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(img, sensor_msgs::image_encodings::MONO8);
+//	assert(cv_ptr->image.type() == CV_8U);
+//	assert(cv_ptr->image.channels() == 1);
 
 
-	if(setting_fullResetRequested)
-	{
-		std::vector<IOWrap::Output3DWrapper*> wraps = fullSystem->outputWrapper;
-		delete fullSystem;
-		for(IOWrap::Output3DWrapper* ow : wraps) ow->reset();
-		fullSystem = new FullSystem();
-		fullSystem->linearizeOperation=false;
-		fullSystem->outputWrapper = wraps;
-	    if(undistorter->photometricUndist != 0)
-	    	fullSystem->setGammaFunction(undistorter->photometricUndist->getG());
-		setting_fullResetRequested=false;
-	}
+//	if(setting_fullResetRequested)
+//	{
+//		std::vector<IOWrap::Output3DWrapper*> wraps = fullSystem->outputWrapper;
+//		delete fullSystem;
+//		for(IOWrap::Output3DWrapper* ow : wraps) ow->reset();
+//		fullSystem = new FullSystem();
+//		fullSystem->linearizeOperation=false;
+//		fullSystem->outputWrapper = wraps;
+//	    if(undistorter->photometricUndist != 0)
+//	    	fullSystem->setGammaFunction(undistorter->photometricUndist->getG());
+//		setting_fullResetRequested=false;
+//	}
 
-	MinimalImageB minImg((int)cv_ptr->image.cols, (int)cv_ptr->image.rows,(unsigned char*)cv_ptr->image.data);
-	ImageAndExposure* undistImg = undistorter->undistort<unsigned char>(&minImg, 1,0, 1.0f);
-	undistImg->timestamp=img->header.stamp.toSec(); // relay the timestamp to dso
-	fullSystem->addActiveFrame(undistImg, frameID);
-	frameID++;
-	delete undistImg;
+//	MinimalImageB minImg((int)cv_ptr->image.cols, (int)cv_ptr->image.rows,(unsigned char*)cv_ptr->image.data);
+//	ImageAndExposure* undistImg = undistorter->undistort<unsigned char>(&minImg, 1,0, 1.0f);
+//	undistImg->timestamp=img->header.stamp.toSec(); // relay the timestamp to dso
+//	fullSystem->addActiveFrame(undistImg, frameID);
+//	frameID++;
+//	delete undistImg;
 
-}
+//}
 
 
 
@@ -186,8 +232,9 @@ int main( int argc, char** argv )
 	for(int i=1; i<argc;i++) parseArgument(argv[i]);
 
 
-	setting_desiredImmatureDensity = 1000;
-	setting_desiredPointDensity = 1200;
+	playbackSpeed = 0;
+	setting_desiredImmatureDensity = 1500;
+	setting_desiredPointDensity = 2000;
 	setting_minFrames = 5;
 	setting_maxFrames = 7;
 	setting_maxOptIterations=4;
@@ -195,52 +242,204 @@ int main( int argc, char** argv )
 	setting_logStuff = false;
 	setting_kfGlobalWeight = 1.3;
 
+//    undistorter = Undistort::getUndistorterForFile(calib, gammaFile, vignetteFile);
 
-	printf("MODE WITH CALIBRATION, but without exposure times!\n");
-	setting_photometricCalibration = 2;
-	setting_affineOptModeA = 0;
-	setting_affineOptModeB = 0;
+//    setGlobalCalib(
+//            (int)undistorter->getSize()[0],
+//            (int)undistorter->getSize()[1],
+//            undistorter->getK().cast<float>());
 
+	ImageFolderReader* reader = new ImageFolderReader(source,calib,gammaFile,vignetteFile);
+	reader->setGlobalCalibration();
 
-
-    undistorter = Undistort::getUndistorterForFile(calib, gammaFile, vignetteFile);
-
-    setGlobalCalib(
-            (int)undistorter->getSize()[0],
-            (int)undistorter->getSize()[1],
-            undistorter->getK().cast<float>());
-
-
+	int lstart=start;
+	int lend = end;
+	int linc = 1;
     fullSystem = new FullSystem();
-    fullSystem->linearizeOperation=false;
+	fullSystem->setGammaFunction(reader->getPhotometricGamma());
+    fullSystem->linearizeOperation=(playbackSpeed==0);
 
-
-    if(!disableAllDisplay)
-	    fullSystem->outputWrapper.push_back(new IOWrap::PangolinDSOViewer(
-	    		 (int)undistorter->getSize()[0],
-	    		 (int)undistorter->getSize()[1]));
-
+    IOWrap::PangolinDSOViewer* viewer = 0;
+	if(!disableAllDisplay)
+    {
+        viewer = new IOWrap::PangolinDSOViewer(wG[0],hG[0], false);
+        fullSystem->outputWrapper.push_back(viewer);
+    }
 
     if(useSampleOutput)
         fullSystem->outputWrapper.push_back(new IOWrap::SampleOutputWrapper());
 
 
-    if(undistorter->photometricUndist != 0)
-    	fullSystem->setGammaFunction(undistorter->photometricUndist->getG());
+//    if(undistorter->photometricUndist != 0)
+//    	fullSystem->setGammaFunction(undistorter->photometricUndist->getG());
 
-    ros::NodeHandle nh;
-    ros::Subscriber imgSub = nh.subscribe("image", 1, &vidCb);
+//    ros::Subscriber imgSub = nh.subscribe("image", 1, &vidCb);
 
-    ros::spin();
     fullSystem->printResult(saveFile);
+    std::thread runthread([&]() {
+        std::vector<int> idsToPlay;
+        std::vector<double> timesToPlayAt;
+        for(int i=lstart;i>= 0 && i< reader->getNumImages() && linc*i < linc*lend;i+=linc)
+        {
+            idsToPlay.push_back(i);
+            if(timesToPlayAt.size() == 0)
+            {
+                timesToPlayAt.push_back((double)0);
+            }
+            else
+            {
+                double tsThis = reader->getTimestamp(idsToPlay[idsToPlay.size()-1]);
+                double tsPrev = reader->getTimestamp(idsToPlay[idsToPlay.size()-2]);
+                timesToPlayAt.push_back(timesToPlayAt.back() +  fabs(tsThis-tsPrev)/playbackSpeed);
+            }
+        }
+
+
+        std::vector<ImageAndExposure*> preloadedImages;
+        if(preload)
+        {
+            printf("LOADING ALL IMAGES!\n");
+            for(int ii=0;ii<(int)idsToPlay.size(); ii++)
+            {
+                int i = idsToPlay[ii];
+                preloadedImages.push_back(reader->getImage(i));
+            }
+        }
+
+        struct timeval tv_start;
+        gettimeofday(&tv_start, NULL);
+        clock_t started = clock();
+        double sInitializerOffset=0;
+
+
+        for(int ii=0;ii<(int)idsToPlay.size(); ii++)
+        {
+            if(!fullSystem->initialized)	// if not initialized: reset start time.
+            {
+                gettimeofday(&tv_start, NULL);
+                started = clock();
+                sInitializerOffset = timesToPlayAt[ii];
+            }
+
+            int i = idsToPlay[ii];
+
+
+            ImageAndExposure* img;
+            if(preload)
+                img = preloadedImages[ii];
+            else
+                img = reader->getImage(i);
+
+
+
+            bool skipFrame=false;
+            if(playbackSpeed!=0)
+            {
+                struct timeval tv_now; gettimeofday(&tv_now, NULL);
+                double sSinceStart = sInitializerOffset + ((tv_now.tv_sec-tv_start.tv_sec) + (tv_now.tv_usec-tv_start.tv_usec)/(1000.0f*1000.0f));
+
+                if(sSinceStart < timesToPlayAt[ii])
+                    usleep((int)((timesToPlayAt[ii]-sSinceStart)*1000*1000));
+                else if(sSinceStart > timesToPlayAt[ii]+0.5+0.1*(ii%2))
+                {
+                    printf("SKIPFRAME %d (play at %f, now it is %f)!\n", ii, timesToPlayAt[ii], sSinceStart);
+                    skipFrame=true;
+                }
+            }
+
+
+
+            if(!skipFrame) fullSystem->addActiveFrame(img, i);
+
+
+
+
+            delete img;
+
+            if(fullSystem->initFailed || setting_fullResetRequested)
+            {
+                if(ii < 250 || setting_fullResetRequested)
+                {
+                    printf("RESETTING!\n");
+
+                    std::vector<IOWrap::Output3DWrapper*> wraps = fullSystem->outputWrapper;
+                    delete fullSystem;
+
+                    for(IOWrap::Output3DWrapper* ow : wraps) ow->reset();
+
+                    fullSystem = new FullSystem();
+                    fullSystem->setGammaFunction(reader->getPhotometricGamma());
+                    fullSystem->linearizeOperation = (playbackSpeed==0);
+
+
+                    fullSystem->outputWrapper = wraps;
+
+                    setting_fullResetRequested=false;
+                }
+            }
+
+            if(fullSystem->isLost)
+            {
+                    printf("LOST!!\n");
+                    break;
+            }
+
+        }
+        fullSystem->blockUntilMappingIsFinished();
+        clock_t ended = clock();
+        struct timeval tv_end;
+        gettimeofday(&tv_end, NULL);
+
+
+        fullSystem->printResult("result.txt");
+
+
+        int numFramesProcessed = abs(idsToPlay[0]-idsToPlay.back());
+        double numSecondsProcessed = fabs(reader->getTimestamp(idsToPlay[0])-reader->getTimestamp(idsToPlay.back()));
+        double MilliSecondsTakenSingle = 1000.0f*(ended-started)/(float)(CLOCKS_PER_SEC);
+        double MilliSecondsTakenMT = sInitializerOffset + ((tv_end.tv_sec-tv_start.tv_sec)*1000.0f + (tv_end.tv_usec-tv_start.tv_usec)/1000.0f);
+        printf("\n======================"
+                "\n%d Frames (%.1f fps)"
+                "\n%.2fms per frame (single core); "
+                "\n%.2fms per frame (multi core); "
+                "\n%.3fx (single core); "
+                "\n%.3fx (multi core); "
+                "\n======================\n\n",
+                numFramesProcessed, numFramesProcessed/numSecondsProcessed,
+                MilliSecondsTakenSingle/numFramesProcessed,
+                MilliSecondsTakenMT / (float)numFramesProcessed,
+                1000 / (MilliSecondsTakenSingle/numSecondsProcessed),
+                1000 / (MilliSecondsTakenMT / numSecondsProcessed));
+        //fullSystem->printFrameLifetimes();
+        if(setting_logStuff)
+        {
+            std::ofstream tmlog;
+            tmlog.open("logs/time.txt", std::ios::trunc | std::ios::out);
+            tmlog << 1000.0f*(ended-started)/(float)(CLOCKS_PER_SEC*reader->getNumImages()) << " "
+                  << ((tv_end.tv_sec-tv_start.tv_sec)*1000.0f + (tv_end.tv_usec-tv_start.tv_usec)/1000.0f) / (float)reader->getNumImages() << "\n";
+            tmlog.flush();
+            tmlog.close();
+        }
+
+    });
+    if(viewer != 0)
+        viewer->run();
+
+    runthread.join();
     for(IOWrap::Output3DWrapper* ow : fullSystem->outputWrapper)
     {
         ow->join();
         delete ow;
     }
 
-    delete undistorter;
+    ros::NodeHandle nh;
+	while (ros::ok())
+	{
+		ros::spinOnce();
+	}
+//    delete undistorter;
     delete fullSystem;
+	delete reader;
 
 	return 0;
 }

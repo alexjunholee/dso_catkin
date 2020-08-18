@@ -1,0 +1,3 @@
+<launch>
+  <node name="dso_ros" pkg="dso_ros" type="dso_ros" args="files=/home/jhlee/data/vivid-dso/in_rob_glo/images.zip calib=/home/jhlee/data/vivid-dso/in_rob_glo/camera.txt preset=0 mode=1"/>
+</launch>
