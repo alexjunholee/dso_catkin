@@ -18,26 +18,19 @@ To access computed information in real-time, I recommend to implement your own O
 
 # 1. Installation
 
-1. Install DSO. We need DSO to be compiled with OpenCV (to read the vignette image), and with Pangolin (for 3D visualization).
-2. edit from CMakeLists.txt line 24 and 25
+1. run 
 
-		DSO_PATH and DSO_LIBRATY
-
-   to your dso path.
-
-3. run 
 		catkin_make
 	
 
-
-# 3 Usage
+# 2. Usage
 everything as described in the DSO project - only this is for real-time camera input.
 
 
 		roslaunch dso_ros dso_ros
 
 
-## 3.1 Accessing Data.
+## 3. Accessing Data.
 see the DSO Readme. As of now, there is no default ROS-based `Output3DWrapper` - you will have to write your own.
 
 
