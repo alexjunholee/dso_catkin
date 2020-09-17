@@ -20,8 +20,11 @@ To access computed information in real-time, I recommend to implement your own O
 
 1. Install DSO. We need DSO to be compiled with OpenCV (to read the vignette image), and with Pangolin (for 3D visualization).
 2. edit from CMakeLists.txt line 24 and 25
+
 		DSO_PATH and DSO_LIBRATY
+
    to your dso path.
+
 3. run 
 		catkin_make
 	

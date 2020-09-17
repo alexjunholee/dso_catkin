@@ -38,15 +38,14 @@
 #include "util/Undistort.h"
 #include "IOWrapper/Pangolin/PangolinDSOViewer.h"
 #include "IOWrapper/OutputWrapper/SampleOutputWrapper.h"
-
+#include "dso_ros.h"
+#include <rosbag/bag.h>
+#include <rosbag/view.h>
+#include <std_msgs/Int32.h>
+#include <std_msgs/String.h>
 
 #include <boost/thread.hpp>
-#include <ros/ros.h>
-#include <sensor_msgs/image_encodings.h>
-#include <sensor_msgs/Image.h>
-#include <sensor_msgs/CameraInfo.h>
 #include <geometry_msgs/PoseStamped.h>
-#include "cv_bridge/cv_bridge.h"
 
 
 int start=0;
@@ -225,22 +224,55 @@ int frameID = 0;
 
 int main( int argc, char** argv )
 {
-	ros::init(argc, argv, "dso_live");
+	ros::init(argc, argv, "dso_ros");
+	ros::NodeHandle nodehandle_;
+	rosbag::Bag bag;
+	std::string bagfilename = "/media/jhlee/4TBHDD/vivid/exp2/indoor/indoor_robust_global.bag";
+    std::cout << "Loading bag file from : " << bagfilename << std::endl;
+	bag.open( bagfilename , rosbag::bagmode::Read );
+    std::vector<std::string> topics;
+	topics.push_back(std::string("/dvs/image_raw"));
+	topics.push_back(std::string("/dvs/events"));
+	topics.push_back(std::string("/imu/data"));
 
+	rosbag::View view(bag, rosbag::TopicQuery(topics));
+	std::vector<dvs_msgs::Event> events_array = {};
+	std::vector<sensor_msgs::Image::ConstPtr> images_array = {};
+	for(rosbag::MessageInstance const m: rosbag::View(bag))
+    {
+		const dvs_msgs::EventArrayConstPtr& dvsptr = m.instantiate<dvs_msgs::EventArray>();
+		const sensor_msgs::Image::ConstPtr& imgptr = m.instantiate<sensor_msgs::Image>();
+		if (dvsptr != nullptr)
+		{
+			for ( int i=0 ; i < (int)dvsptr->events.size() ; i++ )
+			{
+				events_array.push_back(dvsptr->events[i]);
+			}
+		}
+		if (imgptr != nullptr)
+		{
+			if (imgptr->encoding == "mono8") images_array.push_back(imgptr); //use only things from dvs sensor
+		}
+    }
+    std::cout << "Finished Loading bag file!" <<std::endl;
+	std::cout << "loaded Event length : " << events_array.size() << std::endl;
+	std::cout << "loaded Image length : " << images_array.size() << std::endl;
 
+	bag.close();
 
 	for(int i=1; i<argc;i++) parseArgument(argv[i]);
 
 
 	playbackSpeed = 0;
-	setting_desiredImmatureDensity = 1500;
-	setting_desiredPointDensity = 2000;
-	setting_minFrames = 5;
-	setting_maxFrames = 7;
-	setting_maxOptIterations=4;
-	setting_minOptIterations=1;
+	setting_desiredImmatureDensity = 500;
+	setting_desiredPointDensity = 1000;
+	setting_minFrames = 10;
+	setting_maxFrames = 14;
+	setting_maxOptIterations=10;
+	setting_minOptIterations=5;
 	setting_logStuff = false;
 	setting_kfGlobalWeight = 1.3;
+  setting_debugout_runquiet = true;
 
 //    undistorter = Undistort::getUndistorterForFile(calib, gammaFile, vignetteFile);
 
@@ -249,7 +281,9 @@ int main( int argc, char** argv )
 //            (int)undistorter->getSize()[1],
 //            undistorter->getK().cast<float>());
 
-	ImageFolderReader* reader = new ImageFolderReader(source,calib,gammaFile,vignetteFile);
+  ImageFolderReader* reader = new ImageFolderReader(events_array,images_array,gammaFile,vignetteFile);
+//	ImageFolderReader* reader = new ImageFolderReader(source,calib,gammaFile,vignetteFile);
+
 	reader->setGlobalCalibration();
 
 	int lstart=start;
@@ -260,26 +294,28 @@ int main( int argc, char** argv )
     fullSystem->linearizeOperation=(playbackSpeed==0);
 
     IOWrap::PangolinDSOViewer* viewer = 0;
+
 	if(!disableAllDisplay)
     {
         viewer = new IOWrap::PangolinDSOViewer(wG[0],hG[0], false);
         fullSystem->outputWrapper.push_back(viewer);
     }
 
+
     if(useSampleOutput)
         fullSystem->outputWrapper.push_back(new IOWrap::SampleOutputWrapper());
-
 
 //    if(undistorter->photometricUndist != 0)
 //    	fullSystem->setGammaFunction(undistorter->photometricUndist->getG());
 
 //    ros::Subscriber imgSub = nh.subscribe("image", 1, &vidCb);
 
-    fullSystem->printResult(saveFile);
+//    fullSystem->printResult(saveFile);
+	
     std::thread runthread([&]() {
         std::vector<int> idsToPlay;
         std::vector<double> timesToPlayAt;
-        for(int i=lstart;i>= 0 && i< reader->getNumImages() && linc*i < linc*lend;i+=linc)
+        for(int i=lstart;i>= 0 && i< reader->getNumEventImages() && linc*i < linc*lend;i+=linc)
         {
             idsToPlay.push_back(i);
             if(timesToPlayAt.size() == 0)
@@ -294,23 +330,10 @@ int main( int argc, char** argv )
             }
         }
 
-
-        std::vector<ImageAndExposure*> preloadedImages;
-        if(preload)
-        {
-            printf("LOADING ALL IMAGES!\n");
-            for(int ii=0;ii<(int)idsToPlay.size(); ii++)
-            {
-                int i = idsToPlay[ii];
-                preloadedImages.push_back(reader->getImage(i));
-            }
-        }
-
-        struct timeval tv_start;
+        timeval tv_start;
         gettimeofday(&tv_start, NULL);
         clock_t started = clock();
         double sInitializerOffset=0;
-
 
         for(int ii=0;ii<(int)idsToPlay.size(); ii++)
         {
@@ -323,36 +346,10 @@ int main( int argc, char** argv )
 
             int i = idsToPlay[ii];
 
-
             ImageAndExposure* img;
-            if(preload)
-                img = preloadedImages[ii];
-            else
-                img = reader->getImage(i);
+            img = reader->getEventImage(i);
 
-
-
-            bool skipFrame=false;
-            if(playbackSpeed!=0)
-            {
-                struct timeval tv_now; gettimeofday(&tv_now, NULL);
-                double sSinceStart = sInitializerOffset + ((tv_now.tv_sec-tv_start.tv_sec) + (tv_now.tv_usec-tv_start.tv_usec)/(1000.0f*1000.0f));
-
-                if(sSinceStart < timesToPlayAt[ii])
-                    usleep((int)((timesToPlayAt[ii]-sSinceStart)*1000*1000));
-                else if(sSinceStart > timesToPlayAt[ii]+0.5+0.1*(ii%2))
-                {
-                    printf("SKIPFRAME %d (play at %f, now it is %f)!\n", ii, timesToPlayAt[ii], sSinceStart);
-                    skipFrame=true;
-                }
-            }
-
-
-
-            if(!skipFrame) fullSystem->addActiveFrame(img, i);
-
-
-
+            fullSystem->addActiveFrame(img, i);
 
             delete img;
 
@@ -390,10 +387,6 @@ int main( int argc, char** argv )
         struct timeval tv_end;
         gettimeofday(&tv_end, NULL);
 
-
-        fullSystem->printResult("result.txt");
-
-
         int numFramesProcessed = abs(idsToPlay[0]-idsToPlay.back());
         double numSecondsProcessed = fabs(reader->getTimestamp(idsToPlay[0])-reader->getTimestamp(idsToPlay.back()));
         double MilliSecondsTakenSingle = 1000.0f*(ended-started)/(float)(CLOCKS_PER_SEC);
@@ -420,23 +413,21 @@ int main( int argc, char** argv )
             tmlog.flush();
             tmlog.close();
         }
-
     });
+
     if(viewer != 0)
         viewer->run();
 
-    runthread.join();
     for(IOWrap::Output3DWrapper* ow : fullSystem->outputWrapper)
     {
         ow->join();
         delete ow;
     }
 
-    ros::NodeHandle nh;
-	while (ros::ok())
-	{
-		ros::spinOnce();
-	}
+	runthread.join();
+	ros::AsyncSpinner spinner(12);
+	spinner.start();
+
 //    delete undistorter;
     delete fullSystem;
 	delete reader;
