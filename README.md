@@ -24,10 +24,10 @@ To access computed information in real-time, I recommend to implement your own O
 	
 
 # 2. Usage
-everything as described in the DSO project - only this is for real-time camera input.
+modify the bagfilename from src/main.cpp. you can modify this to roslaunch later.
 
 
-		roslaunch dso_ros dso_ros
+		rosrun dso_ros dso_ros preset=0 mode=1
 
 
 ## 3. Accessing Data.
