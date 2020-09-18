@@ -23,8 +23,8 @@
 
 
 
-#include "PangolinDSOViewer.h"
-#include "KeyFrameDisplay.h"
+#include "IOWrapper/Pangolin/PangolinDSOViewer.h"
+#include "IOWrapper/Pangolin/KeyFrameDisplay.h"
 
 #include "util/settings.h"
 #include "util/globalCalib.h"

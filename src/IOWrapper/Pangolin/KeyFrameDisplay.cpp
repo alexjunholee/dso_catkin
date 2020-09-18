@@ -31,7 +31,7 @@
 //#include <GL/glu.h>
 
 #include <pangolin/pangolin.h>
-#include "KeyFrameDisplay.h"
+#include "IOWrapper/Pangolin/KeyFrameDisplay.h"
 #include "FullSystem/HessianBlocks.h"
 #include "FullSystem/ImmaturePoint.h"
 #include "util/FrameShell.h"
