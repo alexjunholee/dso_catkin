@@ -52,11 +52,7 @@ catkin_package(
 )
 
 add_definitions(-std=c++11)
-
-set(DSO_PATH ${PROJECT_SOURCE_DIR}/external/dso)
-set(DSO_LIBRARY dso ${DSO_PATH}/libdso.a)
 set(CMAKE_PREFIX_PATH ${PROJECT_SOURCE_DIR}/cmake)
-#message("---- LOOKING FOR DSO at\n\"${DSO_PATH}\"")
 
 find_package(SuiteParse REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system thread) 
@@ -74,11 +70,31 @@ set(BOOST_THREAD_LIBRARY boost_thread)
 set(CMAKE_CXX_FLAGS
    "${SSE_FLAGS} -O2 -g -std=c++0x -march=native -fno-omit-frame-pointer"
 )
+set(dso_SOURCE_FILES
+  ${PROJECT_SOURCE_DIR}/src/FullSystem/FullSystem.cpp
+  ${PROJECT_SOURCE_DIR}/src/FullSystem/FullSystemOptimize.cpp
+  ${PROJECT_SOURCE_DIR}/src/FullSystem/FullSystemOptPoint.cpp
+  ${PROJECT_SOURCE_DIR}/src/FullSystem/FullSystemDebugStuff.cpp
+  ${PROJECT_SOURCE_DIR}/src/FullSystem/FullSystemMarginalize.cpp
+  ${PROJECT_SOURCE_DIR}/src/FullSystem/Residuals.cpp
+  ${PROJECT_SOURCE_DIR}/src/FullSystem/CoarseTracker.cpp
+  ${PROJECT_SOURCE_DIR}/src/FullSystem/CoarseInitializer.cpp
+  ${PROJECT_SOURCE_DIR}/src/FullSystem/ImmaturePoint.cpp
+  ${PROJECT_SOURCE_DIR}/src/FullSystem/HessianBlocks.cpp
+  ${PROJECT_SOURCE_DIR}/src/FullSystem/PixelSelector2.cpp
+  ${PROJECT_SOURCE_DIR}/src/OptimizationBackend/EnergyFunctional.cpp
+  ${PROJECT_SOURCE_DIR}/src/OptimizationBackend/AccumulatedTopHessian.cpp
+  ${PROJECT_SOURCE_DIR}/src/OptimizationBackend/AccumulatedSCHessian.cpp
+  ${PROJECT_SOURCE_DIR}/src/OptimizationBackend/EnergyFunctionalStructs.cpp
+  ${PROJECT_SOURCE_DIR}/src/util/settings.cpp
+  ${PROJECT_SOURCE_DIR}/src/util/Undistort.cpp
+  ${PROJECT_SOURCE_DIR}/src/util/globalCalib.cpp
+)
+
 
 include_directories(
   include
   ${PROJECT_SOURCE_DIR}/src
-  ${PROJECT_SOURCE_DIR}/external/dso/src
   ${PROJECT_SOURCE_DIR}/thirdparty/Sophus
   ${PROJECT_SOURCE_DIR}/thirdparty/sse2neon
   ${catkin_INCLUDE_DIRS}
@@ -89,7 +105,18 @@ include_directories(
   ${CHOLMOD_INCLUDE_DIR}
   ${LIBZIP_INCLUDE_DIR_ZIP}
   ${LIBZIP_INCLUDE_DIR_ZIPCONF}
-)  
+)
+
+set(HAS_OPENCV 1) #found opencv from above
+include_directories( ${OpenCV_INCLUDE_DIRS} )
+set(dso_opencv_SOURCE_FILES 
+  ${PROJECT_SOURCE_DIR}/src/IOWrapper/OpenCV/ImageDisplay_OpenCV.cpp
+  ${PROJECT_SOURCE_DIR}/src/IOWrapper/OpenCV/ImageRW_OpenCV.cpp)
+set(HAS_PANGOLIN 1) #found pangolin from above
+include_directories( ${Pangolin_INCLUDE_DIRS} ) 
+set(dso_pangolin_SOURCE_FILES 
+  ${PROJECT_SOURCE_DIR}/src/IOWrapper/Pangolin/KeyFrameDisplay.cpp
+  ${PROJECT_SOURCE_DIR}/src/IOWrapper/Pangolin/PangolinDSOViewer.cpp)
 
 catkin_package(
   CATKIN_DEPENDS roscpp rospy cv_bridge std_msgs sensor_msgs geometry_msgs
@@ -97,8 +124,10 @@ catkin_package(
   INCLUDE_DIRS include
 )
 
-add_library(${DSO_LIBRARY})
-set_target_properties(dso PROPERTIES LINKER_LANGUAGE CXX)
+add_library(dso ${dso_SOURCE_FILES} ${dso_opencv_SOURCE_FILES} ${dso_pangolin_SOURCE_FILES})
 add_executable(dso_ros src/main.cpp)
-target_link_libraries(dso_ros boost_system cxsparse ${BOOST_THREAD_LIBRARY} ${LIBZIP_LIBRARY}  ${DSO_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS} ${catkin_LIBRARIES})
+target_link_libraries(dso_ros dso boost_system cxsparse ${BOOST_THREAD_LIBRARY} ${LIBZIP_LIBRARY}  ${DSO_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS} ${catkin_LIBRARIES})
 
+install(FILES package.xml
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)

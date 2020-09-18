@@ -25,3 +25,13 @@
 #include <sensor_msgs/image_encodings.h>
 #include <std_msgs/Float32MultiArray.h>
 
+
+#include "IOWrapper/Output3DWrapper.h"
+#include "IOWrapper/ImageDisplay.h"
+
+#include "util/globalFuncs.h"
+#include "util/globalCalib.h"
+
+#include "util/NumType.h"
+#include "OptimizationBackend/MatrixAccumulators.h"
+#include "FullSystem/PixelSelector2.h"

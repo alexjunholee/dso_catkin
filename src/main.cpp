@@ -82,26 +82,26 @@ void parseArgument(char* arg)
 		printf("loading data from %s!\n", source.c_str());
 		return;
 	}
-	if(1==sscanf(arg,"quiet=%d",&option))
-	{
-		if(option==1)
-		{
-			setting_debugout_runquiet = true;
-			printf("QUIET MODE, I'll shut up!\n");
-		}
-		return;
-	}
+  if(1==sscanf(arg,"quiet=%d",&option))
+  {
+    if(option==1)
+    {
+      setting_debugout_runquiet = true;
+      printf("QUIET MODE, I'll shut up!\n");
+    }
+    return;
+  }
 
 
-	if(1==sscanf(arg,"nolog=%d",&option))
-	{
-		if(option==1)
-		{
-			setting_logStuff = false;
-			printf("DISABLE LOGGING!\n");
-		}
-		return;
-	}
+  if(1==sscanf(arg,"nolog=%d",&option))
+  {
+    if(option==1)
+    {
+      setting_logStuff = false;
+      printf("DISABLE LOGGING!\n");
+    }
+    return;
+  }
 
 	if(1==sscanf(arg,"nogui=%d",&option))
 	{
