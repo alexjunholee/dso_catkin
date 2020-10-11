@@ -78,7 +78,7 @@ int computeHistQuantil(int* hist, float below)
 void PixelSelector::makeHists(const FrameHessian* const fh)
 {
 	gradHistFrame = fh;
-	float * mapmax0 = fh->absSquaredGrad[0];
+  float * mapmax0 = fh->absSquaredGrad[0];
 
 	int w = wG[0];
 	int h = hG[0];
@@ -99,8 +99,8 @@ void PixelSelector::makeHists(const FrameHessian* const fh)
 				int it = i+32*x;
 				int jt = j+32*y;
 				if(it>w-2 || jt>h-2 || it<1 || jt<1) continue;
-				int g = sqrtf(map0[i+j*w]);
-				if(g>48) g=48;
+        int g = sqrtf(map0[i+j*w]);
+        if(g>48) g=48;
 				hist0[g+1]++;
 				hist0[0]++;
 			}

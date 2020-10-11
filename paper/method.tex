@@ -1,0 +1,89 @@
+\section{Method}
+\label{sec:method}
+
+%ALGO
+\begin{algorithm}[!b]
+\SetAlgoLined
+	\KwData{Single depth image, event stream}
+	\KwResult{6 dof continuous trajectory}
+	$\ $\\
+	$X_{depth}$ = Extracted edge cloud from depth image\;
+	$T_e$ = Tree structure built from events\;
+	$\ $\\
+	\Repeat{Converge}{
+		build polynomial spline trajectory $P(v)$\\
+		\For{number of intervals}{
+			$X'_{depth}$ = transformed $X_{depth}$ with $P(v)$\\
+			$I$ = projected points of $X'_{depth}$ on event frame\\
+			search nearest neighbour of $I$ from $T_e$\\
+			update loss \eqref{eq:loss}
+		}
+		update spline parameters $v$\\
+	}
+	\caption{Continuous polynomial spline trajectory estimation with
+		depth image and events}
+\end{algorithm}
+%ALGO
+
+In our method, we start from depth measurement and preprocess the depth image with
+an edge detector to extract structural edges. As events are only generated upon
+changes in luminance, measurements occurred from event camera are all from photometric
+and geometric edges. Thus assuming enough structural than color difference, projected
+depth edges could be matched to event measurements.
+
+Depth cameras, such as Kinect or Xtion, provide accurate depth information with
+resolution of millimeters in indoor environments. However it may fail to match between
+measurements with large baseline, since the sensor rate usually is around tens of hertz.
+Robotic systems like drones could generate aggressive motion in real world, thus relying
+on single frame-based sensor may be vulnerable. To overcome this problem, we suggest to
+find relative motion from another sensor with higher frame, which is event camera.
+Our algorithm is to utilize the continuous measurement characteristics of event camera,
+to estimate the motion occurred between frames of the depth sensor.
+
+From measurement obtained with depth camera, we may transform the pointcloud into
+event camera's frame, and project them into image plane. Then the depth image from
+event frame is obtained, we use using edge detectors for detecting geometrical
+discontinuities in the image. Although sensors are placed closely, there are
+occlusions and discontinuities due to occluded area should be ignored. For
+transforming depth measurements into event camera frame, we used extrinsic
+calibration provided from the dataset released.
+
+After extracting geometric discontinuities from event frame with depth camera,
+we define a polynomial spline and recursively update basis parameters to minimize
+the loss. We defined loss as weighted sum of three losses : distance between
+geometric edge and incoming events, error of reprojected depth measurements and
+parameter regularization term.
+\begin{eqnarray}
+\label{eq:loss}
+L &=& L_{struct} + L_{endpose} + L_{param}\\
+L_{struct} &:& \text{Structure matching loss}\nonumber\\
+L_{endpose} &:& \text{End pose loss}\nonumber\\
+L_{param} &:& \text{Regularization loss}\nonumber
+\end{eqnarray}
+Given spline parameter $v$ with n variables, we construct polynomial trajectory
+with nth order basis function $P_n(t,v)$, where $v$ is polynomial spline parameter, as
+\begin{equation}
+P_n(t,v) = \sum_{i=1}^{n} v_i t_i \nonumber
+\end{equation}
+where t is time between two depth poses. Note that there's no zeroth order term
+from we're solving relative pose problem, so $P(0,v)=0$. Then with this 6dof
+polynomial curve, we may transform the geometrical edge point $X_{depth}$ and find nearest
+neighbour from built tree structure of events $T_e$.
+\begin{equation}
+L_{struct} = \pi_0(P(t,v) X_{depth})\nonumber
+\end{equation}
+
+Then we may calculate
+structure matching loss from the matched distance. To avoid building too large
+tree, we divide the intervals by time and do the search only within interval.
+In the experiment, we used number of intervals significantly more than polynomial order.
+
+The end pose error is obtained from transforming latter depth measurement into
+prior depth pointcloud by endpoint pose of polynomial.
+\begin{equation}
+L_{endpose} = X_{depth}(t) - P^{-1}(t,v)\cdot X_{depth}(t+1)\nonumber
+\end{equation}
+And as the last, we defined
+regularization loss of spline parameters to avoid overestimating the higher order
+parameter of the polynomial. Then we optimize the spline parameter $v$ to minimize
+the loss, using LM method.

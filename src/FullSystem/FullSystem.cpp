@@ -53,6 +53,7 @@
 #include "IOWrapper/Output3DWrapper.h"
 
 #include "util/ImageAndExposure.h"
+#include <util/akaze/AKAZE.h>
 
 #include <cmath>
 
@@ -658,6 +659,15 @@ void FullSystem::activatePointsMT()
 		{
 			newpoint->host->immaturePoints[ph->idxInImmaturePoints]=0;
 			newpoint->host->pointHessians.push_back(newpoint);
+      cv::KeyPoint* cvpt = new cv::KeyPoint(0,0,0,0);
+      cvpt->pt.x = newpoint->u;
+      cvpt->pt.y = newpoint->v;
+      cvpt->class_id = 0;
+      cvpt->response = newpoint->color[0];
+      cvpt->octave = 0;
+      cvpt->size = 0.75;
+      newpoint->kazept = *cvpt;
+      newpoint->host->kazepts.push_back(cvpt);
 			ef->insertPoint(newpoint);
 			for(PointFrameResidual* r : newpoint->residuals)
 				ef->insertResidual(r);
@@ -735,7 +745,9 @@ void FullSystem::flagPointsForRemoval()
 			{
 				host->pointHessiansOut.push_back(ph);
 				ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
-				host->pointHessians[i]=0;
+        host->pointHessians[i]=0;
+//        host->kazepts[i] = 0;
+//        host->kazedesc[i] = 0;
 				flag_nores++;
 			}
 			else if(ph->isOOB(fhsToKeepPoints, fhsToMargPoints) || host->flaggedForMarginalization)
@@ -780,7 +792,9 @@ void FullSystem::flagPointsForRemoval()
 					//printf("drop point in frame %d (%d goodRes, %d activeRes)\n", ph->host->idx, ph->numGoodResiduals, (int)ph->residuals.size());
 				}
 
-				host->pointHessians[i]=0;
+        host->pointHessians[i]=0;
+//        host->kazepts[i] = 0;
+//        host->kazedesc[i] = 0;
 			}
 		}
 
@@ -791,6 +805,12 @@ void FullSystem::flagPointsForRemoval()
 			{
 				host->pointHessians[i] = host->pointHessians.back();
 				host->pointHessians.pop_back();
+
+//        host->kazepts[i] = host->kazepts.back();
+//        host->kazepts.pop_back();
+
+//        host->kazedesc[i] = host->kazedesc.back();
+//        host->kazedesc.pop_back();
 				i--;
 			}
 		}
@@ -805,7 +825,6 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
     if(isLost) return;
 	boost::unique_lock<boost::mutex> lock(trackMutex);
 
-
 	// =========================== add into allFrameHistory =========================
 	FrameHessian* fh = new FrameHessian();
 	FrameShell* shell = new FrameShell();
@@ -817,10 +836,12 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 	fh->shell = shell;
 	allFrameHistory.push_back(shell);
 
+  fh->imgMats = image->imgMats;
 
 	// =========================== make Images / derivatives etc. =========================
 	fh->ab_exposure = image->exposure_time;
-    fh->makeImages(image->image, &Hcalib);
+  fh->makeImages(image->image, &Hcalib);
+  fh->preparekaze();
 
 
 
@@ -836,8 +857,8 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 		else if(coarseInitializer->trackFrame(fh, outputWrapper))	// if SNAPPED
 		{
 
-			initializeFromInitializer(fh);
-			lock.unlock();
+      initializeFromInitializer(fh);
+      lock.unlock();
 			deliverTrackedFrame(fh, true);
 		}
 		else
@@ -1048,7 +1069,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
 	}
 
-	traceNewCoarse(fh);
+  (fh);
 
 	boost::unique_lock<boost::mutex> lock(mapMutex);
 
@@ -1071,8 +1092,9 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	int numFwdResAdde=0;
 	for(FrameHessian* fh1 : frameHessians)		// go through all active frames
 	{
-		if(fh1 == fh) continue;
-		for(PointHessian* ph : fh1->pointHessians)
+    if(fh1 == fh)
+      continue;
+    for(PointHessian* ph : fh1->pointHessians)
 		{
 			PointFrameResidual* r = new PointFrameResidual(ph, fh1, fh);
 			r->setState(ResState::IN);
@@ -1080,8 +1102,8 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 			ef->insertResidual(r);
 			ph->lastResiduals[1] = ph->lastResiduals[0];
 			ph->lastResiduals[0] = std::pair<PointFrameResidual*, ResState>(r, ResState::IN);
-			numFwdResAdde+=1;
-		}
+      numFwdResAdde+=1;
+    }
 	}
 
 
@@ -1207,7 +1229,7 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 	firstFrame->frameID = allKeyFramesHistory.size();
 	allKeyFramesHistory.push_back(firstFrame->shell);
 	ef->insertFrame(firstFrame, &Hcalib);
-	setPrecalcValues();
+  setPrecalcValues();
 
 	//int numPointsTotal = makePixelStatus(firstFrame->dI, selectionMap, wG[0], hG[0], setting_desiredDensity);
 	//int numPointsTotal = pixelSelector->makeMaps(firstFrame->dIp, selectionMap,setting_desiredDensity);
@@ -1232,6 +1254,7 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 //        printf("Initialization: keep %.1f%% (need %d, have %d)!\n", 100*keepPercentage,
 //                (int)(setting_desiredPointDensity), coarseInitializer->numPoints[0] );
 
+  firstFrame->kazeevolution->fill_variables_for_matching(firstFrame->imgMats[0],firstFrame->kazepts);
 	for(int i=0;i<coarseInitializer->numPoints[0];i++)
 	{
 		if(rand()/(float)RAND_MAX > keepPercentage) continue;
@@ -1243,20 +1266,22 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 
 
 		pt->idepth_max=pt->idepth_min=1;
-		PointHessian* ph = new PointHessian(pt, &Hcalib);
+    PointHessian* ph = new PointHessian(pt, &Hcalib);
 		delete pt;
 		if(!std::isfinite(ph->energyTH)) {delete ph; continue;}
 
 		ph->setIdepthScaled(point->iR*rescaleFactor);
 		ph->setIdepthZero(ph->idepth);
-		ph->hasDepthPrior=true;
-		ph->setPointStatus(PointHessian::ACTIVE);
+    ph->hasDepthPrior=true;
+    ph->setPointStatus(PointHessian::ACTIVE);
 
-		firstFrame->pointHessians.push_back(ph);
-		ef->insertPoint(ph);
-	}
+    firstFrame->pointHessians.push_back(ph);
+    firstFrame->kazepts.push_back(&ph->kazept);
+    firstFrame->kazedesc.push_back(&ph->featdesc);
+    ef->insertPoint(ph);
+  }
 
-
+  firstFrame->kazeevolution->Compute_Descriptors(firstFrame->dIp,firstFrame->kazepts,&(firstFrame->kazedesc));
 
 	SE3 firstToNew = coarseInitializer->thisToNext;
 	firstToNew.translation() /= rescaleFactor;

@@ -266,8 +266,8 @@ int main( int argc, char** argv )
 	playbackSpeed = 0;
 	setting_desiredImmatureDensity = 500;
 	setting_desiredPointDensity = 1000;
-	setting_minFrames = 10;
-	setting_maxFrames = 14;
+  setting_minFrames = 10;
+  setting_maxFrames = 20;
 	setting_maxOptIterations=10;
 	setting_minOptIterations=5;
 	setting_logStuff = false;
@@ -284,7 +284,7 @@ int main( int argc, char** argv )
   ImageFolderReader* reader = new ImageFolderReader(events_array,images_array,gammaFile,vignetteFile);
 //	ImageFolderReader* reader = new ImageFolderReader(source,calib,gammaFile,vignetteFile);
 
-	reader->setGlobalCalibration();
+  reader->setGlobalCalibration(); //set wG wH from here
 
 	int lstart=start;
 	int lend = end;
@@ -386,6 +386,7 @@ int main( int argc, char** argv )
         clock_t ended = clock();
         struct timeval tv_end;
         gettimeofday(&tv_end, NULL);
+        fullSystem->printResult("/home/jhlee/ws_depthevo/result.txt");
 
         int numFramesProcessed = abs(idsToPlay[0]-idsToPlay.back());
         double numSecondsProcessed = fabs(reader->getTimestamp(idsToPlay[0])-reader->getTimestamp(idsToPlay.back()));
@@ -429,7 +430,7 @@ int main( int argc, char** argv )
 	spinner.start();
 
 //    delete undistorter;
-    delete fullSystem;
+  delete fullSystem;
 	delete reader;
 
 	return 0;

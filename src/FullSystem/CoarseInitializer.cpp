@@ -775,13 +775,13 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 	float* statusMap = new float[w[0]*h[0]];
 	bool* statusMapB = new bool[w[0]*h[0]];
 
-	float densities[] = {0.03,0.05,0.15,0.5,1};
+  float densities[] = {0.03,0.05,0.15,0.5,1};
 	for(int lvl=0; lvl<pyrLevelsUsed; lvl++)
 	{
 		sel.currentPotential = 3;
 		int npts;
 		if(lvl == 0)
-			npts = sel.makeMaps(firstFrame, statusMap,densities[lvl]*w[0]*h[0],1,false,2);
+      npts = sel.makeMaps(firstFrame, statusMap,densities[lvl]*w[0]*h[0],1,false,2);
 		else
 			npts = makePixelStatus(firstFrame->dIp[lvl], statusMapB, w[lvl], h[lvl], densities[lvl]*w[0]*h[0]);
 
@@ -813,19 +813,26 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 
 				Eigen::Vector3f* cpt = firstFrame->dIp[lvl] + x + y*w[lvl];
 				float sumGrad2=0;
-				for(int idx=0;idx<patternNum;idx++)
-				{
-					int dx = patternP[idx][0];
-					int dy = patternP[idx][1];
-					float absgrad = cpt[dx + dy*w[lvl]].tail<2>().squaredNorm();
-					sumGrad2 += absgrad;
-				}
+
+        for(int idx=0;idx<patternNum;idx++)
+        {
+          int dx = patternP[idx][0];
+          int dy = patternP[idx][1];
+          sumGrad2 += absgrad;
+        }
+//				for(int idx=0;idx<patternNum;idx++)
+//				{
+//          int dx = patternP[idx][0];
+//          int dy = patternP[idx][1];
+//					float absgrad = cpt[dx + dy*w[lvl]].tail<2>().squaredNorm();
+//					sumGrad2 += absgrad;
+//				}
 
 //				float gth = setting_outlierTH * (sqrtf(sumGrad2)+setting_outlierTHSumComponent);
 //				pl[nl].outlierTH = patternNum*gth*gth;
 //
 
-				pl[nl].outlierTH = patternNum*setting_outlierTH;
+        pl[nl].outlierTH = patternNum*setting_outlierTH;
 
 
 

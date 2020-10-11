@@ -30,6 +30,7 @@
  */
 
 #include "FullSystem/FullSystem.h"
+#include "FullSystem/Residuals.h"
  
 #include "stdio.h"
 #include "util/globalFuncs.h"
@@ -180,19 +181,34 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 
 	float wJI2_sum = 0;
 
-	for(int idx=0;idx<patternNum;idx++)
-	{
-		float Ku, Kv;
-		if(!projectPoint(point->u+patternP[idx][0], point->v+patternP[idx][1], point->idepth_scaled, PRE_KRKiTll, PRE_KtTll, Ku, Kv))
-			{ state_NewState = ResState::OOB; return state_energy; }
+//  int idx=5;
+//  float Ku, Kv;
+//  float descsize = point->host->kazeoptions.descriptor_pattern_size;
+//  if(!projectPoint(point->u+descsize, point->v+descsize, point->idepth_scaled, PRE_KRKiTll, PRE_KtTll, Ku, Kv)
+//     || !projectPoint(point->u-descsize, point->v-descsize, point->idepth_scaled, PRE_KRKiTll, PRE_KtTll, Ku, Kv))
+//    { state_NewState = ResState::OOB; return state_energy; }
+//  if( ( Ku+descsize > 240 || Kv+descsize > 180 || Ku-descsize < 0 || Kv-descsize < 0 ))
+//    { state_NewState = ResState::OOB; return state_energy; }
+//  projectedTo[0][0] = Ku;
+//  projectedTo[0][1] = Kv;
+//  float residual = DescResidual(Ku, Kv, wG);
+//  Vec3f hitColor = (getInterpolatedElement33(dIl, Ku, Kv, wG[0]));
+//  float w = sqrtf(setting_outlierTHSumComponent / (setting_outlierTHSumComponent + hitColor.tail<2>().squaredNorm()));
+//      w = 0.5f*(w + weights[idx]);
+//  float hw = fabsf(residual) < setting_huberTH ? 1 : setting_huberTH / fabsf(residual);
+//  energyLeft += w*w*hw *residual*residual*(2-hw);
+
+  for(int idx=0;idx<patternNum;idx++)
+  {
+    float Ku, Kv;
+        if(!projectPoint(point->u+patternP[idx][0], point->v+patternP[idx][1], point->idepth_scaled, PRE_KRKiTll, PRE_KtTll, Ku, Kv))
+          { state_NewState = ResState::OOB; return state_energy; }
 
 		projectedTo[idx][0] = Ku;
 		projectedTo[idx][1] = Kv;
 
-
-        Vec3f hitColor = (getInterpolatedElement33(dIl, Ku, Kv, wG[0]));
-        float residual = hitColor[0] - (float)(affLL[0] * color[idx] + affLL[1]);
-
+    Vec3f hitColor = (getInterpolatedElement33(dIl, Ku, Kv, wG[0]));
+    float residual = hitColor[0] - (float)(affLL[0] * color[idx] + affLL[1]);
 
 
 		float drdA = (color[idx]-b0);
@@ -206,7 +222,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 
 
 		float hw = fabsf(residual) < setting_huberTH ? 1 : setting_huberTH / fabsf(residual);
-		energyLeft += w*w*hw *residual*residual*(2-hw);
+    energyLeft += w*w*hw *residual*residual*(2-hw);
 
 		{
 			if(hw < 1) hw = sqrtf(hw);
@@ -242,7 +258,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 			if(setting_affineOptModeB < 0) J->JabF[1][idx]=0;
 
 		}
-	}
+  }
 
 	J->JIdx2(0,0) = JIdxJIdx_00;
 	J->JIdx2(0,1) = JIdxJIdx_10;
@@ -273,7 +289,29 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 	return energyLeft;
 }
 
+float PointFrameResidual::DescResidual(const float xf, const float yf, const int width[PYR_LEVELS])
+{
+//   find residual from difference of dI, compared to descriptor level.
+//   use how much points intensity disagree with descriptor from the error sum.
 
+  const double size_mult[3] = {1, 2.0/3.0, 1.0/2.0};
+  int pattern_size = host->kazeoptions.descriptor_pattern_size;
+  float angle = point->kazept.angle;
+  int dpos = 0;
+  float residual = 0;
+  float values[48];
+  float ratio = (float)(1 << point->kazept.octave);
+  float scale = 1;
+
+  for (int lvl = 0 ; lvl < 2 ; lvl++)
+  {
+    int sample_step = static_cast<int>(ceil(pattern_size * size_mult[lvl]));
+    int count = (lvl + 2) * (lvl + 2);
+    host->kazeevolution->MLDB_compute_residual(target->dIp[lvl],&residual,point->featdesc,values,sample_step,point->kazept.class_id,xf,yf,scale,width[lvl],angle,&dpos,count);
+  }
+  //why is dpos 126?
+  return residual / 5;
+}
 
 void PointFrameResidual::debugPlot()
 {

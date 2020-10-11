@@ -34,7 +34,9 @@
 #include "util/NumType.h"
 #include "FullSystem/Residuals.h"
 #include "util/ImageAndExposure.h"
+#include <memory>
 
+#include <util/akaze/AKAZE.h>
 
 namespace dso
 {
@@ -116,8 +118,8 @@ struct FrameHessian
 	//DepthImageWrap* frame;
 	FrameShell* shell;
 
-	Eigen::Vector3f* dI;				 // trace, fine tracking. Used for direction select (not for gradient histograms etc.)
-	Eigen::Vector3f* dIp[PYR_LEVELS];	 // coarse tracking / coarse initializer. NAN in [0] only.
+  Eigen::Vector3f* dI;				 // trace, fine tracking. Used for direction select (not for gradient histograms etc.)
+  Eigen::Vector3f* dIp[PYR_LEVELS];	 // coarse tracking / coarse initializer. NAN in [0] only.
 	float* absSquaredGrad[PYR_LEVELS];  // only used for pixel select (histograms etc.). no NAN.
 
 
@@ -135,11 +137,17 @@ struct FrameHessian
 
 	bool flaggedForMarginalization;
 
+  std::vector<cv::Mat> imgMats;
+  std::vector<std::vector<bool>*> kazedesc; // contains kaze desc of ACTIVE points.
+  std::vector<cv::KeyPoint*> kazepts; // contains kaze keypoints from ACTIVE points.
 	std::vector<PointHessian*> pointHessians;				// contains all ACTIVE points.
 	std::vector<PointHessian*> pointHessiansMarginalized;	// contains all MARGINALIZED points (= fully marginalized, usually because point went OOB.)
 	std::vector<PointHessian*> pointHessiansOut;		// contains all OUTLIER points (= discarded.).
 	std::vector<ImmaturePoint*> immaturePoints;		// contains all OUTLIER points (= discarded.).
 
+  std::shared_ptr<libAKAZE::AKAZE> kazeevolution;
+  AKAZEOptions kazeoptions;
+  void preparekaze();
 
 	Mat66 nullspaces_pose;
 	Mat42 nullspaces_affine;
@@ -172,7 +180,6 @@ struct FrameHessian
     inline Vec6 w2c_leftEps() const {return get_state_scaled().head<6>();}
     inline AffLight aff_g2l() const {return AffLight(get_state_scaled()[6], get_state_scaled()[7]);}
     inline AffLight aff_g2l_0() const {return AffLight(get_state_zero()[6]*SCALE_A, get_state_zero()[7]*SCALE_B);}
-
 
 
 	void setStateZero(const Vec10 &state_zero);
@@ -249,11 +256,11 @@ struct FrameHessian
 		flaggedForMarginalization=false;
 		frameID = -1;
 		efFrame = 0;
-		frameEnergyTH = 8*8*patternNum;
-
+    frameEnergyTH = 8*8*patternNum;
 
 
 		debugImage=0;
+
 	};
 
 
@@ -409,7 +416,8 @@ struct PointHessian
 	// static values
 	float color[MAX_RES_PER_POINT];			// colors in host frame
 	float weights[MAX_RES_PER_POINT];		// host-weights for respective residuals.
-
+  std::vector<bool> featdesc;
+  cv::KeyPoint kazept;
 
 
 	float u,v;

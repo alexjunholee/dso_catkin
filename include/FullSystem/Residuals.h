@@ -33,6 +33,7 @@
 #include <fstream>
 #include "util/globalFuncs.h"
 #include "OptimizationBackend/RawResidualJacobian.h"
+#include <util/akaze/AKAZE.h>
 
 namespace dso
 {
@@ -70,6 +71,7 @@ public:
 
 	void setState(ResState s) {state_state = s;}
 
+  float DescResidual(const float x, const float y, const int width[PYR_LEVELS]);
 
 	PointHessian* point;
 	FrameHessian* host;

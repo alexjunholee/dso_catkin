@@ -8,15 +8,16 @@ set (CMAKE_C_CXX_COMMON_FLAGS "-Wall -Wfloat-equal -Wundef -Wno-strict-aliasing 
 set (CMAKE_C_FLAGS "-u MAIN__ -std=gnu99 -fopenmp ${CMAKE_C_CXX_COMMON_FLAGS}")
 set (CMAKE_CXX_FLAGS "-u MAIN__ -std=gnu++11 -std=c++11 -fopenmp -msse4.1 ${CMAKE_C_CXX_COMMON_FLAGS}")
 set(CMAKE_CXX_FLAGS
-   "${SSE_FLAGS} -O3 -g -std=c++0x -march=native"
+   "${SSE_FLAGS} -O3 -DDEBUG -0g -std=c++0x -march=native"
 )
 
-set(BUILD_TYPE RelWithDebInfo)
+set(BUILD_TYPE Debug)
 if (MSVC)
      set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 endif (MSVC)
 find_package(cmake_modules REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(OpenMP)
 include_directories(${Eigen_INCLUDE_DIRS})
 
 # Set the build type.  Options are:
@@ -91,6 +92,17 @@ set(dso_SOURCE_FILES
   ${PROJECT_SOURCE_DIR}/src/util/globalCalib.cpp
 )
 
+set(AKAZE_SOURCE_FILES
+  ${PROJECT_SOURCE_DIR}/include/util/akaze/AKAZEConfig.h
+  ${PROJECT_SOURCE_DIR}/include/util/akaze/AKAZE.h
+  ${PROJECT_SOURCE_DIR}/include/util/akaze/nldiffusion_functions.h
+  ${PROJECT_SOURCE_DIR}/include/util/akaze/kazeutils.h
+  ${PROJECT_SOURCE_DIR}/include/util/akaze/fed.h
+  ${PROJECT_SOURCE_DIR}/src/util/akaze/AKAZE.cpp
+  ${PROJECT_SOURCE_DIR}/src/util/akaze/fed.cpp
+  ${PROJECT_SOURCE_DIR}/src/util/akaze/nldiffusion_functions.cpp
+  ${PROJECT_SOURCE_DIR}/src/util/akaze/kazeutils.cpp
+)
 
 include_directories(
   include
@@ -124,10 +136,7 @@ catkin_package(
   INCLUDE_DIRS include
 )
 
+add_library(AKAZE ${AKAZE_SOURCE_FILES})
 add_library(dso ${dso_SOURCE_FILES} ${dso_opencv_SOURCE_FILES} ${dso_pangolin_SOURCE_FILES})
 add_executable(dso_ros src/main.cpp)
-target_link_libraries(dso_ros dso boost_system cxsparse ${BOOST_THREAD_LIBRARY} ${LIBZIP_LIBRARY}  ${DSO_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS} ${catkin_LIBRARIES})
-
-install(FILES package.xml
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-)
+target_link_libraries(dso_ros dso AKAZE boost_system cxsparse ${BOOST_THREAD_LIBRARY} ${LIBZIP_LIBRARY}  ${DSO_LIBRARY} ${Pangolin_LIBRARIES} ${OpenCV_LIBS} ${catkin_LIBRARIES})

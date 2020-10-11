@@ -102,7 +102,6 @@ namespace dso
 			cxiG[level] = KiG[level](0,2);
 			cyiG[level] = KiG[level](1,2);
 		}
-	}
-
+  }
 
 }

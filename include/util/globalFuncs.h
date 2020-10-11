@@ -29,6 +29,11 @@
 #include "IOWrapper/ImageDisplay.h"
 #include "fstream"
 
+#include <iostream>
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+
 namespace dso
 {
 
@@ -80,7 +85,6 @@ EIGEN_ALWAYS_INLINE Eigen::Vector3f getInterpolatedElement33(const Eigen::Vector
 	float dy = y - iy;
 	float dxdy = dx*dy;
 	const Eigen::Vector3f* bp = mat +ix+iy*width;
-
 
 	return dxdy * *(const Eigen::Vector3f*)(bp+1+width)
 	        + (dy-dxdy) * *(const Eigen::Vector3f*)(bp+width)
