@@ -113,7 +113,7 @@ class ImageFolderReader
 {
 public:
 	ImageFolderReader(std::vector<dvs_msgs::Event> events_array, std::vector<sensor_msgs::Image::ConstPtr> images_array, std::string gammaFile, std::string vignetteFile)
-  {
+	{
 		this->images = images_array;
 		this->events = events_array;
 		this->path = "/home/jhlee/data/vivid-dso/imgen/images.zip";
@@ -176,7 +176,16 @@ public:
 		else
 			getdir (path, files);
 
-    undistort = Undistort::getUndistorterForFile(calibFile, gammaFile, vignetteFile);
+
+		undistort = Undistort::getUndistorterForFile(calibFile, gammaFile, vignetteFile);
+
+
+		widthOrg = undistort->getOriginalSize()[0];
+		heightOrg = undistort->getOriginalSize()[1];
+		width=undistort->getSize()[0];
+		height=undistort->getSize()[1];
+
+
 		// load timestamps if possible.
 		loadTimestamps();
 		printf("ImageFolderReader: got %d files in %s!\n", (int)files.size(), path.c_str());
@@ -255,20 +264,18 @@ public:
 	ImageAndExposure* getEventImage(int id)
 	{
 		cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(images[id],"mono8");
-    build_eventimage(cv_ptr);
-//    MinimalImageB minImg1((int)cv_ptr->image.cols, (int)cv_ptr->image.rows,(unsigned char*)cv_ptr->image.data);
-    MinimalImageB minImg((int)widthOrg, (int)heightOrg, (unsigned char*)cv_ptr->image.data);
-
-        cv::imshow("img",cv_ptr->image);
-        cv::waitKey();
-    ImageAndExposure* undistImg = undistort->undistort<unsigned char>(&minImg, 1,0, 1.0f);
-    undistImg->create_undistMat();
-    undistImg->timestamp=images[id]->header.stamp.toSec(); // relay the timestamp to dso
+//		build_eventimage(cv_ptr);
+    cv::GaussianBlur(cv_ptr->image,cv_ptr->image,cv::Size(5,5),10.0);
+//		MinimalImageB minImg((int)cv_ptr->image.cols, (int)cv_ptr->image.rows,(unsigned char*)cv_ptr->image.data);
+	    MinimalImageB minImg((int)widthOrg, (int)heightOrg, (unsigned char*)cv_ptr->image.data);
+//		std::cout<<id<<"    "<<cv_ptr->encoding<<std::endl;
+		ImageAndExposure* undistImg = undistort->undistort<unsigned char>(&minImg, 1,0, 1.0f);
+		undistImg->timestamp=images[id]->header.stamp.toSec(); // relay the timestamp to dso
 		return undistImg;
 	}
 	void build_eventimage(cv_bridge::CvImagePtr cv_ptr)
 	{
-    cv::Mat eventimg = cv::Mat::zeros(cv_ptr->image.rows,cv_ptr->image.cols,CV_8UC1);
+		cv::Mat evenimg = cv::Mat::zeros(cv_ptr->image.rows,cv_ptr->image.cols,CV_8UC1);
 		double timenow = cv_ptr->header.stamp.toSec();
 		double eventt = events[0].ts.toSec();
 		while (eventiter+1 < events.size() && timenow > eventt)
@@ -277,15 +284,16 @@ public:
 			eventiter++;
 		}
 		int e_start = eventiter;
-    int e_end = eventiter + 1e4;
+		int e_end = eventiter + 1e4;
 		for (int i = e_start ; i < e_end ; i++)
 		{
-      eventimg.data[(int)events[i].y * eventimg.cols  + (int)events[i].x] = 255;
-    }
-    cv::Mat eventimg_float;
-    eventimg.convertTo(eventimg_float,CV_32F,1.0/255.0,0);
-    cv::GaussianBlur(eventimg_float,eventimg_float,cv::Size(3,3),2.0);
-    cv_ptr->image = eventimg_float.clone();
+      evenimg.data[(int)events[i].y * evenimg.cols  + (int)events[i].x] = 255;
+		}
+//		cv::namedWindow("eventImg",cv::WINDOW_AUTOSIZE);
+//		cv::imshow("eventImg",evenimg);
+//		cv::waitKey(0);
+
+//		cv_ptr->image = evenimg.clone();
 	}
 	inline float* getPhotometricGamma()
 	{
@@ -412,6 +420,9 @@ private:
 		printf("got %d images and %d timestamps and %d exposures.!\n", (int)getNumImages(), (int)timestamps.size(), (int)exposures.size());
 	}
 
+
+
+
 	std::vector<ImageAndExposure*> preloadedImages;
 	std::vector<std::string> files;
 	std::vector<double> timestamps;
@@ -426,7 +437,7 @@ private:
 	std::string path;
 	std::string calibfile;
 
-  bool isZipped;
+	bool isZipped;
 
 #if HAS_ZIPLIB
 	zip_t* ziparchive;

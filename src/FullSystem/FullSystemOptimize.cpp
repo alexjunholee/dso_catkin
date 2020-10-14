@@ -644,10 +644,6 @@ void FullSystem::removeOutliers()
 				ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
 				fh->pointHessians[i] = fh->pointHessians.back();
 				fh->pointHessians.pop_back();
-//        fh->kazedesc[i] = fh->kazedesc.back();
-//        fh->kazedesc.pop_back();
-//        fh->kazepts[i] = fh->kazepts.back();
-//        fh->kazepts.pop_back();
 				i--;
 				numPointsDropped++;
 			}

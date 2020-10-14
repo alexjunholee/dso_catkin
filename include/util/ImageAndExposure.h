@@ -26,8 +26,6 @@
 #include <cstring>
 #include <iostream>
 
-#include <util/akaze/AKAZE.h>
-#include <util/akaze/nldiffusion_functions.h>
 
 namespace dso
 {
@@ -38,7 +36,6 @@ class ImageAndExposure
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 	float* image;			// irradiance. between 0 and 256
-  std::vector<cv::Mat> imgMats;
 	int w,h;				// width and height;
 	double timestamp;
 	float exposure_time;	// exposure time in ms.
@@ -57,18 +54,6 @@ public:
 		other.exposure_time = exposure_time;
 	}
 
-  void create_undistMat()
-  {
-    cv::Mat imMat = cv::Mat(w,h,CV_32FC1,image);
-    imgMats.push_back(imMat);
-    for (int i = 1 ; i < 3 ; i++)
-    {
-      cv::Mat imMatG;
-      gaussian_2D_convolution(imMat,imMatG,0,0,0.5*i);
-      imgMats.push_back(imMatG);
-    }
-  }
-
 	inline ImageAndExposure* getDeepCopy()
 	{
 		ImageAndExposure* img = new ImageAndExposure(w,h,timestamp);
@@ -76,8 +61,6 @@ public:
 		memcpy(img->image, image, w*h*sizeof(float));
 		return img;
 	}
-  AKAZEOptions kazeoptions;
-
 };
 
 

@@ -45,7 +45,6 @@ PointHessian::PointHessian(const ImmaturePoint* const rawPoint, CalibHessian* Hc
 	// set static values & initialization.
 	u = rawPoint->u;
 	v = rawPoint->v;
-
 	assert(std::isfinite(rawPoint->idepth_max));
 	//idepth_init = rawPoint->idepth_GT;
 
@@ -59,6 +58,7 @@ PointHessian::PointHessian(const ImmaturePoint* const rawPoint, CalibHessian* Hc
 	memcpy(weights, rawPoint->weights, sizeof(float)*n);
 	energyTH = rawPoint->energyTH;
 
+	efPoint=0;
   kazept = cv::KeyPoint(u,v,0,0);
   kazept.class_id = 0;
   kazept.response = color[0];
@@ -121,21 +121,19 @@ void FrameHessian::setStateZero(const Vec10 &state_zero)
 void FrameHessian::release()
 {
 	// DELETE POINT
-  // DELETE RESIDUAL
-//  for(unsigned int i=0;i<kazepts.size();i++) delete kazepts[i];
-//  for(unsigned int i=0;i<kazedesc.size();i++) delete kazedesc[i];
-  for(unsigned int i=0;i<pointHessians.size();i++) delete pointHessians[i];
+	// DELETE RESIDUAL
+	for(unsigned int i=0;i<pointHessians.size();i++) delete pointHessians[i];
 	for(unsigned int i=0;i<pointHessiansMarginalized.size();i++) delete pointHessiansMarginalized[i];
 	for(unsigned int i=0;i<pointHessiansOut.size();i++) delete pointHessiansOut[i];
 	for(unsigned int i=0;i<immaturePoints.size();i++) delete immaturePoints[i];
 
-//  kazepts.clear();
-//  kazedesc.clear();
+
 	pointHessians.clear();
 	pointHessiansMarginalized.clear();
 	pointHessiansOut.clear();
 	immaturePoints.clear();
 }
+
 
 void FrameHessian::preparekaze()
 {
@@ -147,7 +145,7 @@ void FrameHessian::preparekaze()
   kazeoptions.img_height = 180;
   libAKAZE::AKAZE evolution(kazeoptions);
   kazeevolution = std::make_shared<libAKAZE::AKAZE>(evolution);
-  kazedesc = {};
+//  kazedesc = {};
 }
 
 void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
@@ -192,21 +190,20 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 		}
 
 		for(int idx=wl;idx < wl*(hl-1);idx++)
-    {
-      float dx = 0.5f*(dI_l[idx+1][0] - dI_l[idx-1][0]);
-      float dy = 0.5f*(dI_l[idx+wl][0] - dI_l[idx-wl][0]);
-
-      if(!std::isfinite(dx)) dx=0;
-      if(!std::isfinite(dy)) dy=0;
-
-      dI_l[idx][1] = dx;
-      dI_l[idx][2] = dy;
-//      dI_l[idx][1] = dI_l[idx][0];
-//      dI_l[idx][2] = dI_l[idx][0];
+		{
+			float dx = 0.5f*(dI_l[idx+1][0] - dI_l[idx-1][0]);
+			float dy = 0.5f*(dI_l[idx+wl][0] - dI_l[idx-wl][0]);
 
 
-      dabs_l[idx] = dx*dx + dy*dy;
-//      dabs_l[idx] = dI_l[idx][0]*dI_l[idx][0];
+			if(!std::isfinite(dx)) dx=0;
+			if(!std::isfinite(dy)) dy=0;
+
+			dI_l[idx][1] = dx;
+			dI_l[idx][2] = dy;
+
+
+//      dabs_l[idx] = dx*dx+dy*dy;
+      dabs_l[idx] = dI_l[idx][0]*dI_l[idx][0];
 
 //			if(setting_gammaWeightsPixelSelect==1 && HCalib!=0)
 //			{
@@ -214,7 +211,7 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 //				dabs_l[idx] *= gw*gw;	// convert to gradient of original color space (before removing response).
 //			}
 		}
-  }
+	}
 }
 
 void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessian* HCalib )

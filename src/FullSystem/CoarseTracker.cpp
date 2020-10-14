@@ -551,7 +551,7 @@ bool CoarseTracker::trackNewestCoarse(
 
 	newFrame = newFrameHessian;
 	int maxIterations[] = {10,20,50,50,50};
-  float lambdaExtrapolationLimit = 0.001;
+	float lambdaExtrapolationLimit = 0.001;
 
 	SE3 refToNew_current = lastToNew_out;
 	AffLight aff_g2l_current = aff_g2l_out;
@@ -575,7 +575,7 @@ bool CoarseTracker::trackNewestCoarse(
 
 		calcGSSSE(lvl, H, b, refToNew_current, aff_g2l_current);
 
-    float lambda = 0.01;
+		float lambda = 0.01;
 
 		if(debugPrint)
 		{

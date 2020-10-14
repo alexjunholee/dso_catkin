@@ -200,7 +200,7 @@ ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame,const Mat33f &hos
 		return lastTraceStatus = ImmaturePointStatus::IPS_BADCONDITION;
 	}
 
-  if(errorInPixel >20) errorInPixel=20;
+	if(errorInPixel >10) errorInPixel=10;
 
 
 

@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "util/settings.h"
 #include "util/DatasetReader.h"
@@ -43,6 +44,7 @@
 #include <rosbag/view.h>
 #include <std_msgs/Int32.h>
 #include <std_msgs/String.h>
+
 
 #include <boost/thread.hpp>
 #include <geometry_msgs/PoseStamped.h>
@@ -219,7 +221,10 @@ int frameID = 0;
 //}
 
 
-
+bool sortevents (const dvs_msgs::Event& ev1, const dvs_msgs::Event& ev2)
+{
+   return ev1.ts.toSec() < ev2.ts.toSec();
+}
 
 
 int main( int argc, char** argv )
@@ -238,26 +243,52 @@ int main( int argc, char** argv )
 	rosbag::View view(bag, rosbag::TopicQuery(topics));
 	std::vector<dvs_msgs::Event> events_array = {};
 	std::vector<sensor_msgs::Image::ConstPtr> images_array = {};
-	for(rosbag::MessageInstance const m: rosbag::View(bag))
-    {
-		const dvs_msgs::EventArrayConstPtr& dvsptr = m.instantiate<dvs_msgs::EventArray>();
-		const sensor_msgs::Image::ConstPtr& imgptr = m.instantiate<sensor_msgs::Image>();
-		if (dvsptr != nullptr)
-		{
-			for ( int i=0 ; i < (int)dvsptr->events.size() ; i++ )
-			{
-				events_array.push_back(dvsptr->events[i]);
-			}
-		}
-		if (imgptr != nullptr)
-		{
-			if (imgptr->encoding == "mono8") images_array.push_back(imgptr); //use only things from dvs sensor
-		}
-    }
-    std::cout << "Finished Loading bag file!" <<std::endl;
-	std::cout << "loaded Event length : " << events_array.size() << std::endl;
-	std::cout << "loaded Image length : " << images_array.size() << std::endl;
+  for(rosbag::MessageInstance const m: rosbag::View(bag))
+  {
+    const dvs_msgs::EventArrayConstPtr& dvsptr = m.instantiate<dvs_msgs::EventArray>();
+    if (dvsptr != nullptr)
+      for ( int i=0 ; i < (int)dvsptr->events.size() ; i++ )
+        events_array.push_back(dvsptr->events[i]);
+  }
+  std::sort(events_array.begin(),events_array.end(),sortevents);
 
+  int eventiter = 0;
+  std::vector<uint8_t> evdata(240*180,0);
+  for(rosbag::MessageInstance const m: rosbag::View(bag))
+  {
+    const sensor_msgs::Image::ConstPtr& imgptr = m.instantiate<sensor_msgs::Image>();
+
+    if ((imgptr != nullptr) and (imgptr->encoding == "mono8"))
+    {
+      sensor_msgs::Image::Ptr event_image = boost::make_shared<sensor_msgs::Image>();
+      event_image->header = imgptr->header;
+      event_image->height = imgptr->height;
+      event_image->width = imgptr->width;
+      event_image->encoding = imgptr->encoding;
+      event_image->is_bigendian = imgptr->is_bigendian;
+      event_image->step = imgptr->step;
+
+      double timenow = imgptr->header.stamp.toSec();
+      double eventt = events_array[0].ts.toSec();
+      while (eventiter+1 < events_array.size() && timenow > eventt)
+      {
+        eventt = events_array[eventiter].ts.toSec();
+        eventiter++;
+      }
+      int e_start = eventiter;
+      int e_end = eventiter + 1e4;
+      memset(evdata.data(),0,sizeof(uint8_t)*240*180);
+      for (int i = e_start ; i < e_end ; i++)
+      {
+        evdata[(int)events_array[i].y * imgptr->width  + (int)events_array[i].x] = 255;
+      }
+      event_image->data = evdata;
+      images_array.push_back(event_image); //use only things from dvs sensor
+    }
+  }
+  std::cout << "Finished Loading bag file!" <<std::endl;
+  std::cout << "loaded Event length : " << events_array.size() << std::endl;
+  std::cout << "loaded Image length : " << images_array.size() << std::endl;
 	bag.close();
 
 	for(int i=1; i<argc;i++) parseArgument(argv[i]);
@@ -266,8 +297,8 @@ int main( int argc, char** argv )
 	playbackSpeed = 0;
 	setting_desiredImmatureDensity = 500;
 	setting_desiredPointDensity = 1000;
-  setting_minFrames = 10;
-  setting_maxFrames = 20;
+	setting_minFrames = 10;
+	setting_maxFrames = 14;
 	setting_maxOptIterations=10;
 	setting_minOptIterations=5;
 	setting_logStuff = false;
@@ -284,7 +315,7 @@ int main( int argc, char** argv )
   ImageFolderReader* reader = new ImageFolderReader(events_array,images_array,gammaFile,vignetteFile);
 //	ImageFolderReader* reader = new ImageFolderReader(source,calib,gammaFile,vignetteFile);
 
-  reader->setGlobalCalibration(); //set wG wH from here
+	reader->setGlobalCalibration();
 
 	int lstart=start;
 	int lend = end;
@@ -386,7 +417,6 @@ int main( int argc, char** argv )
         clock_t ended = clock();
         struct timeval tv_end;
         gettimeofday(&tv_end, NULL);
-        fullSystem->printResult("/home/jhlee/ws_depthevo/result.txt");
 
         int numFramesProcessed = abs(idsToPlay[0]-idsToPlay.back());
         double numSecondsProcessed = fabs(reader->getTimestamp(idsToPlay[0])-reader->getTimestamp(idsToPlay.back()));
@@ -430,7 +460,7 @@ int main( int argc, char** argv )
 	spinner.start();
 
 //    delete undistorter;
-  delete fullSystem;
+    delete fullSystem;
 	delete reader;
 
 	return 0;

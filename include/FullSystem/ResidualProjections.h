@@ -53,7 +53,7 @@ EIGEN_STRONG_INLINE bool projectPoint(
 	Vec3f ptp = KRKi * Vec3f(u_pt,v_pt, 1) + Kt*idepth;
 	Ku = ptp[0] / ptp[2];
 	Kv = ptp[1] / ptp[2];
-  return Ku>0.1f && Kv>0.1f && Ku<wM3G && Kv<hM3G;
+	return Ku>1.1f && Kv>1.1f && Ku<wM3G && Kv<hM3G;
 }
 
 

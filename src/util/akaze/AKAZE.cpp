@@ -99,7 +99,7 @@ void AKAZE::Allocate_Memory_Evolution() {
 }
 
 
-int AKAZE::fill_variables_for_matching(cv::Mat img, std::vector<cv::KeyPoint*> kpts)
+int AKAZE::fill_variables_for_matching(cv::Mat img)
 {
   // from Create_Nonlinear_Scale_Space
   double t1 = 0.0, t2 = 0.0;

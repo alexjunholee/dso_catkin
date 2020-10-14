@@ -8,10 +8,10 @@ set (CMAKE_C_CXX_COMMON_FLAGS "-Wall -Wfloat-equal -Wundef -Wno-strict-aliasing 
 set (CMAKE_C_FLAGS "-u MAIN__ -std=gnu99 -fopenmp ${CMAKE_C_CXX_COMMON_FLAGS}")
 set (CMAKE_CXX_FLAGS "-u MAIN__ -std=gnu++11 -std=c++11 -fopenmp -msse4.1 ${CMAKE_C_CXX_COMMON_FLAGS}")
 set(CMAKE_CXX_FLAGS
-   "${SSE_FLAGS} -O3 -DDEBUG -0g -std=c++0x -march=native"
+   "${SSE_FLAGS} -O3 -g -std=c++0x -march=native"
 )
 
-set(BUILD_TYPE Debug)
+set(BUILD_TYPE RelWithDebInfo)
 if (MSVC)
      set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
 endif (MSVC)

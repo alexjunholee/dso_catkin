@@ -55,7 +55,7 @@ namespace libAKAZE {
     void Allocate_Memory_Evolution();
 
     /// fill up all the variable needed for direct matching, which is used in event dso.
-    int fill_variables_for_matching(const cv::Mat img, std::vector<cv::KeyPoint*> kpts);
+    int fill_variables_for_matching(const cv::Mat img);
 
     /// This method creates the nonlinear scale space for a given image
     /// @param img Input image for which the nonlinear scale space needs to be created

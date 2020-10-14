@@ -47,7 +47,7 @@ namespace dso
 
 
 // ============== PARAMETERS TO BE DECIDED ON COMPILE TIME =================
-#define PYR_LEVELS 3
+#define PYR_LEVELS 6
 extern int pyrLevelsUsed;
 
 
