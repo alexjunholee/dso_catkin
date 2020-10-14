@@ -24,8 +24,12 @@ To access computed information in real-time, I recommend to implement your own O
 	
 
 # 2. Usage
+
 change the project folder name into dso_ros.
+
 modify the bagfilename from src/main.cpp. you can modify this to roslaunch later.
+
+
 
 
 		rosrun dso_ros dso_ros
