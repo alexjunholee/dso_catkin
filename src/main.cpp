@@ -232,30 +232,19 @@ int main( int argc, char** argv )
 	bag.open( bagfilename , rosbag::bagmode::Read );
     std::vector<std::string> topics;
 	topics.push_back(std::string("/dvs/image_raw"));
-	topics.push_back(std::string("/dvs/events"));
 	topics.push_back(std::string("/imu/data"));
 
 	rosbag::View view(bag, rosbag::TopicQuery(topics));
-	std::vector<dvs_msgs::Event> events_array = {};
 	std::vector<sensor_msgs::Image::ConstPtr> images_array = {};
 	for(rosbag::MessageInstance const m: rosbag::View(bag))
     {
-		const dvs_msgs::EventArrayConstPtr& dvsptr = m.instantiate<dvs_msgs::EventArray>();
 		const sensor_msgs::Image::ConstPtr& imgptr = m.instantiate<sensor_msgs::Image>();
-		if (dvsptr != nullptr)
-		{
-			for ( int i=0 ; i < (int)dvsptr->events.size() ; i++ )
-			{
-				events_array.push_back(dvsptr->events[i]);
-			}
-		}
 		if (imgptr != nullptr)
 		{
 			if (imgptr->encoding == "mono8") images_array.push_back(imgptr); //use only things from dvs sensor
 		}
     }
     std::cout << "Finished Loading bag file!" <<std::endl;
-	std::cout << "loaded Event length : " << events_array.size() << std::endl;
 	std::cout << "loaded Image length : " << images_array.size() << std::endl;
 
 	bag.close();
@@ -281,7 +270,7 @@ int main( int argc, char** argv )
 //            (int)undistorter->getSize()[1],
 //            undistorter->getK().cast<float>());
 
-  ImageFolderReader* reader = new ImageFolderReader(events_array,images_array,gammaFile,vignetteFile);
+  ImageFolderReader* reader = new ImageFolderReader(images_array,gammaFile,vignetteFile);
 //	ImageFolderReader* reader = new ImageFolderReader(source,calib,gammaFile,vignetteFile);
 
 	reader->setGlobalCalibration();
@@ -347,7 +336,7 @@ int main( int argc, char** argv )
             int i = idsToPlay[ii];
 
             ImageAndExposure* img;
-            img = reader->getEventImage(i);
+            img = reader->getImagefromarr(i);
 
             fullSystem->addActiveFrame(img, i);
 

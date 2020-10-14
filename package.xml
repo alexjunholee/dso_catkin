@@ -24,7 +24,6 @@
   <build_depend>tf</build_depend>
   <build_depend>cmake_modules</build_depend>
   <build_depend>opencv2</build_depend>
-  <build_depend>dvs_msgs</build_depend>
   <build_depend>Eigen</build_depend>
   <build_depend>image_transport</build_depend>
 
@@ -43,7 +42,6 @@
   <run_depend>tf</run_depend>
   <run_depend>cmake_modules</run_depend>
   <run_depend>opencv2</run_depend>
-  <run_depend>dvs_msgs</run_depend>
   <run_depend>Eigen</run_depend>
   <run_depend>image_transport</run_depend>
 

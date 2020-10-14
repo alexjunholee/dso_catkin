@@ -35,7 +35,6 @@ find_package(catkin REQUIRED COMPONENTS
 	image_transport
 	std_msgs
 	OpenCV
-	dvs_msgs
 	sensor_msgs
 	geometry_msgs
 )
@@ -44,7 +43,6 @@ catkin_package(
 	INCLUDE_DIRS include
 	CATKIN_DEPENDS
 	std_msgs
-	dvs_msgs
 	cv_bridge
 	image_transport
 	message_runtime

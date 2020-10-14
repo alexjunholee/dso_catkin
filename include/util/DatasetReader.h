@@ -34,8 +34,6 @@
 
 #include "util/Undistort.h"
 #include "IOWrapper/ImageRW.h"
-#include <dvs_msgs/EventArray.h>
-#include <dvs_msgs/Event.h>
 
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/Image.h>
@@ -112,10 +110,9 @@ struct PrepImageItem
 class ImageFolderReader
 {
 public:
-	ImageFolderReader(std::vector<dvs_msgs::Event> events_array, std::vector<sensor_msgs::Image::ConstPtr> images_array, std::string gammaFile, std::string vignetteFile)
+	ImageFolderReader(std::vector<sensor_msgs::Image::ConstPtr> images_array, std::string gammaFile, std::string vignetteFile)
 	{
 		this->images = images_array;
-		this->events = events_array;
 		this->path = "/home/jhlee/data/vivid-dso/imgen/images.zip";
 		this->calibfile = "/home/jhlee/data/vivid-dso/imgen/dvs.txt";
 		undistort = Undistort::getUndistorterForFile(this->calibfile,gammaFile,vignetteFile);
@@ -132,7 +129,7 @@ public:
 		height=undistort->getSize()[1];
 
 		loadTimestamps();
-		printf("ImageFolderReader: got %d images and %d events in %s!\n", (int)images_array.size(), (int)events_array.size(), this->path.c_str());
+    printf("ImageFolderReader: got %d images in %s!\n", (int)images_array.size(), this->path.c_str());
 	}
 	ImageFolderReader(std::string path, std::string calibFile, std::string gammaFile, std::string vignetteFile)
 	{
@@ -261,39 +258,17 @@ public:
 		return getImage_internal(id, 0);
 	}
 
-	ImageAndExposure* getEventImage(int id)
+  ImageAndExposure* getImagefromarr(int id)
 	{
-		cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(images[id],"mono8");
-		build_eventimage(cv_ptr);
+    cv_bridge::CvImagePtr cv_ptr = cv_bridge::toCvCopy(images[id],"mono8");
 //		MinimalImageB minImg((int)cv_ptr->image.cols, (int)cv_ptr->image.rows,(unsigned char*)cv_ptr->image.data);
 	    MinimalImageB minImg((int)widthOrg, (int)heightOrg, (unsigned char*)cv_ptr->image.data);
 //		std::cout<<id<<"    "<<cv_ptr->encoding<<std::endl;
 		ImageAndExposure* undistImg = undistort->undistort<unsigned char>(&minImg, 1,0, 1.0f);
 		undistImg->timestamp=images[id]->header.stamp.toSec(); // relay the timestamp to dso
 		return undistImg;
-	}
-	void build_eventimage(cv_bridge::CvImagePtr cv_ptr)
-	{
-		cv::Mat evenimg = cv::Mat::zeros(cv_ptr->image.rows,cv_ptr->image.cols,CV_8UC1);
-		double timenow = cv_ptr->header.stamp.toSec();
-		double eventt = events[0].ts.toSec();
-		while (eventiter+1 < events.size() && timenow > eventt)
-		{
-			eventt = events[eventiter].ts.toSec();
-			eventiter++;
-		}
-		int e_start = eventiter;
-		int e_end = eventiter + 1e4;
-		for (int i = e_start ; i < e_end ; i++)
-		{
-      evenimg.data[(int)events[i].y * evenimg.cols  + (int)events[i].x] = 255;
-		}
-//		cv::namedWindow("eventImg",cv::WINDOW_AUTOSIZE);
-//		cv::imshow("eventImg",evenimg);
-//		cv::waitKey(0);
+  }
 
-//		cv_ptr->image = evenimg.clone();
-	}
 	inline float* getPhotometricGamma()
 	{
 		if(undistort==0 || undistort->photometricUndist==0) return 0;
@@ -425,8 +400,7 @@ private:
 	std::vector<ImageAndExposure*> preloadedImages;
 	std::vector<std::string> files;
 	std::vector<double> timestamps;
-	std::vector<float> exposures;
-	std::vector<dvs_msgs::Event> events;
+  std::vector<float> exposures;
 	std::vector<sensor_msgs::Image::ConstPtr> images;
 
 	int width, height;
